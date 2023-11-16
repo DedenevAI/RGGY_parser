@@ -1,14 +1,16 @@
+import time
+import os
 from aiogram import Router, F
 from aiogram import html
+from aiogram.enums import ParseMode
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, ReplyKeyboardRemove
-from aiogram.enums import ParseMode
 from aiogram.types import FSInputFile
-from keyboards.menu_keyboard import menu, choice_schedulle, choice_graduate, choice_kurs, choice_srok, ButtonsName
+from aiogram.types import Message, ReplyKeyboardRemove
+from keyboards.menu_keyboard import menu, choice_schedulle, choice_graduate, choice_kurs, choice_srok, show_again
 from parser import parser_1
-import time
+from text_holder.text_elements_enum import ButtonsName
 
 router = Router()
 
@@ -29,18 +31,26 @@ async def cmd_start(message: Message, state: FSMContext):
     await state.set_state(Status.menu_activity)
 
 
+    @router.message(Status.menu_activity or Status.forming_information_for_parse or Status.parsing, F.text)
+    async def for_spam(message: Message):
+        await message.answer(
+            "Пожалуйста, используйте меню"
+        )
+
+
 # showing the author's information
 @router.message(Status.menu_activity, F.text.lower() == ButtonsName.author.value)
 async def show_author(message: Message):
     await message.answer(
-        ButtonsName.graduate.value.values() +
+
         "Студент группы ФИСБ_ПИ_ПИГС\nАлександр Деденев\nGitHub: https://github.com/DedenevAI/DedenevAI"
     )
 
 
 # choosing the types of getting schedule
+@router.message(Command(commands=["return"]))
 @router.message(Status.menu_activity,
-                F.text.lower() == ButtonsName.schedule_main.value)
+                F.text.lower() == ButtonsName.schedule_main.value or F.text.lower() == str(ButtonsName.again.value).lower())
 async def show_schedulle_types(message: Message, state: FSMContext):
     await message.answer(
         "Какое расписание ты хочешь просмотреть?",
@@ -108,26 +118,33 @@ async def show_schedule(message: Message, state: FSMContext):
     caf = user_data['caf']
 
     await message.answer(
-        "Расписание формируется, пожалуйста, подождите \n" +
-        formob + " " + kurs + " " + srok + " " + caf + " " + str(download_mode)
+        "Расписание формируется, пожалуйста, подождите."
     )
 
-    if download_mode:
-        
-        parser_1.Potok_parser(formob, kurs, srok, caf, download_mode).parse()
+    parser = parser_1.Potok_parser(formob, kurs, srok, caf, download_mode).parse()
+
+    if parser == 0:
+        await message.answer(
+            "Ой! Кажется при формировании вашего расписания произошла ошибка! Пожалуйста, проверьте данные и "
+            "попробуйте еще раз.",
+            reply_markup=show_again()
+        )
+
+    elif download_mode:
         time.sleep(20)
 
         schedule = FSInputFile("/Users/alexded/Desktop/rg_sch_par/bot/files/schedule.xlsx")
 
         await message.answer_document(
             schedule,
-            caption="Расписание:"
+            caption="Расписание:",
+            reply_markup=show_again()
         )
+        os.remove("/Users/alexded/Desktop/rg_sch_par/bot/files/schedule.xlsx")
     else:
-
-        table = parser_1.Potok_parser(formob, kurs, srok, caf, download_mode).parse()
-
         await message.answer(
-            f"{table}", parse_mode=ParseMode.HTML
+            f"{parser}", parse_mode=ParseMode.HTML,
+            reply_markup = show_again()
         )
     await state.clear()
+    await state.set_state(Status.menu_activity)
