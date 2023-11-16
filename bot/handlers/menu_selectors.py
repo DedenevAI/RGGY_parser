@@ -160,7 +160,7 @@ async def show_schedule(message: Message, state: FSMContext):
         )
 
     elif download_mode:
-        time.sleep(20)
+        time.sleep(5)
 
         schedule = FSInputFile("/Users/alexded/Desktop/rg_sch_par/bot/files/schedule.xlsx")
 

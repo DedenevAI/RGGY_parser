@@ -30,7 +30,7 @@ class ParserUni:
         time.sleep(1)
         self.select_by_text("srokprep", self.srok)
         browser.find_element(By.NAME, "prepbut").click()
-        time.sleep(3)
+        time.sleep(2)
 
         return self.table_drawer()
 
@@ -43,11 +43,11 @@ class ParserUni:
         self.select_by_value("kyrs", self.kurs)
         self.select_by_text("srok", self.srok)
         browser.find_element(By.NAME, "potokbut").click()
-        time.sleep(3)
+        time.sleep(2)
 
         self.group_checker("fprep", self.input_data, "caf")
         browser.find_element(By.NAME, "potokbut2").click()
-        time.sleep(3)
+        time.sleep(2)
         return self.table_drawer()
 
     @staticmethod
@@ -94,11 +94,15 @@ class ParserUni:
             df.to_excel(r"/Users/alexded/Desktop/rg_sch_par/bot/files/schedule.xlsx", index=False)
         elif self.parse_mode == "group":
             df['Дата'] = df['Дата'].str[:5]
-            res = (df.rename(columns={"Группа": "Гр."}).drop('Тип', axis=1)
+            res = (df.rename(columns={"Группа": "Гр."})
+                   .drop('Тип', axis=1)
                    .to_string(index=False, justify='center', col_space=10))
             return res
         elif self.parse_mode == "teach":
-            res = (df.rename(columns={"Группа": "Гр."}).drop('Тип', axis=1)
+            res = (df.rename(columns={"Группа": "Гр."})
+                   .drop('Тип', axis=1)
+                   .drop("День", axis=1)
+                   .drop("Курс", axis=1)
                    .to_string(index=False, justify='center', col_space=10))
             return res
 
