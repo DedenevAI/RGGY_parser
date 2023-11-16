@@ -1,5 +1,4 @@
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 import pandas as pd
@@ -51,23 +50,27 @@ class ParserUni:
         time.sleep(3)
         return self.table_drawer()
 
-    def main_button_click(self, name):
+    @staticmethod
+    def main_button_click(name):
         return browser.find_element(By.XPATH, f"//*[text() = '{name}']").click()
 
-    def select_by_value(self, selectID, value):
-        select = Select(browser.find_element(By.ID, selectID))
+    @staticmethod
+    def select_by_value(select_id, value):
+        select = Select(browser.find_element(By.ID, select_id))
         select.select_by_value(str(value))
 
-    def select_by_text(self, selectID, value):
-        select = Select(browser.find_element(By.ID, selectID))
+    @staticmethod
+    def select_by_text(select_id, value):
+        select = Select(browser.find_element(By.ID, select_id))
         select.select_by_visible_text(value)
 
-    def group_checker(self, input_el, key,
-                      selectID):  # input, check equals with select and return table-name result for check
+    @staticmethod
+    def group_checker(input_el, key,
+                      select_id):  # input, check equals with select and return table-name result for check
         elem = browser.find_element(By.NAME, input_el)
         elem.send_keys(key)
         time.sleep(5)
-        select = Select(browser.find_element(By.ID, selectID))
+        select = Select(browser.find_element(By.ID, select_id))
         return select.first_selected_option.text
 
     def table_drawer(self):
@@ -91,14 +94,13 @@ class ParserUni:
             df.to_excel(r"/Users/alexded/Desktop/rg_sch_par/bot/files/schedule.xlsx", index=False)
         elif self.parse_mode == "group":
             df['Дата'] = df['Дата'].str[:5]
-            res = df.rename(columns={"Группа": "Гр."}).drop('Тип', axis=1).to_string(index=False, justify='center',
-                                                                                     col_space=10)
+            res = (df.rename(columns={"Группа": "Гр."}).drop('Тип', axis=1)
+                   .to_string(index=False, justify='center', col_space=10))
             return res
         elif self.parse_mode == "teach":
-            res = df.rename(columns={"Группа": "Гр."}).drop('Тип', axis=1).to_string(index=False, justify='center',
-                                                                                     col_space=10)
+            res = (df.rename(columns={"Группа": "Гр."}).drop('Тип', axis=1)
+                   .to_string(index=False, justify='center', col_space=10))
             return res
 
-
-# print(ParserUni(srok="дневная", input_data = "Пигс", download_mode = False, formob="дневная", kurs ="курс 2").parse())
+# print(ParserUni(srok="дневная", input_data = "Пигс", download_mode = False, formob="дневная", kurs ="курс 2").parse_group())
 # print(ParserUni(srok="дневная", input_data="Алексеев", download_mode=False, parse_mode="teach").parse_teacher())

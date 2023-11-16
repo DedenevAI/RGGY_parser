@@ -9,8 +9,8 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import FSInputFile
 from aiogram.types import Message, ReplyKeyboardRemove
 from keyboards.menu_keyboard import menu, choice_schedulle, choice_graduate, choice_kurs, choice_srok, show_again
-from parser import parser_1
-from text_holder.text_elements_enum import ButtonsName
+from parser import schedule_parser
+from text_holder.text_elements_enum import ButtonsName, BotMessage
 
 router = Router()
 
@@ -34,7 +34,7 @@ async def cmd_start(message: Message, state: FSMContext):
     @router.message(Status.menu_activity or Status.forming_information_for_parse_group or Status.parsing, F.text)
     async def for_spam(message: Message):
         await message.answer(
-            "Пожалуйста, воспользуйтесь кнопками-меню."
+            BotMessage.menu_warning.value
         )
 
 
@@ -42,8 +42,7 @@ async def cmd_start(message: Message, state: FSMContext):
 @router.message(Status.menu_activity, F.text.lower() == ButtonsName.author.value)
 async def show_author(message: Message):
     await message.answer(
-
-        "Студент группы ФИСБ_ПИ_ПИГС\nАлександр Деденев\nGitHub: https://github.com/DedenevAI/DedenevAI"
+        BotMessage.author_information.value
     )
 
 
@@ -54,17 +53,17 @@ async def show_author(message: Message):
                     ButtonsName.again.value).lower())
 async def show_schedulle_types(message: Message, state: FSMContext):
     await message.answer(
-        "Какое расписание ты хочешь просмотреть?",
+        BotMessage.show_schedulle.value,
         reply_markup=choice_schedulle()
     )
 
 
 @router.message(Status.menu_activity,
                 F.text.lower() == str(ButtonsName.schedule.value[1]).lower())
-async def show_graduate(message: Message, state: FSMContext):
+async def show_teacher_writer(message: Message, state: FSMContext):
     await state.update_data(parse_mode="teach")
     await message.answer(
-        "Пожалуйста, введите фамилию преподавателя:",
+        BotMessage.show_teacher_writer.value,
         reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(Status.forming_information_for_parse_teach)
@@ -75,7 +74,7 @@ async def show_graduate(message: Message, state: FSMContext):
 async def show_graduate(message: Message, state: FSMContext):
     await state.update_data(parse_mode="group")
     await message.answer(
-        "Выбери форму обучения:",
+        BotMessage.show_graduate.value,
         reply_markup=choice_graduate()
     )
     await state.set_state(Status.forming_information_for_parse_group)
@@ -86,7 +85,7 @@ async def show_graduate(message: Message, state: FSMContext):
 async def show_kurs(message: Message, state: FSMContext):
     await state.update_data(formob=message.text.lower())
     await message.answer(
-        "Выбери курс обучения:",
+        BotMessage.show_kurs.value,
         reply_markup=choice_kurs()
     )
 
@@ -95,7 +94,7 @@ async def show_kurs(message: Message, state: FSMContext):
 async def show_srok_for_group(message: Message, state: FSMContext):
     await state.update_data(kurs=message.text.lower())
     await message.answer(
-        "На какой период необходимо отобразить расписание?",
+        BotMessage.show_srok.value,
         reply_markup=choice_srok()
         )
 
@@ -104,7 +103,7 @@ async def show_srok_for_group(message: Message, state: FSMContext):
 async def show_srok_for_teach(message: Message, state: FSMContext):
     await state.update_data(kurs=message.text.lower())
     await message.answer(
-        "На какой период необходимо отобразить расписание?",
+        BotMessage.show_srok.value,
         reply_markup=choice_srok()
         )
     await state.set_state(Status.parsing)
@@ -112,18 +111,12 @@ async def show_srok_for_teach(message: Message, state: FSMContext):
 
 @router.message(Status.forming_information_for_parse_group,
                 F.text.lower().in_(ButtonsName.srok.value.values()))
-async def show_srok(message: Message, state: FSMContext):
+async def show_group_writer(message: Message, state: FSMContext):
     await state.update_data(srok=message.text.lower())
     await state.update_data(download_mode=download_mode_set(message.text.lower()))
 
-    """if (message.text.lower() == str(ButtonsName.srok.value.get("month")).lower() or
-            message.text.lower() == str(ButtonsName.srok.value.get("sem")).lower()):
-        await state.update_data(download_mode=1)
-    else:
-        await state.update_data(download_mode=0)"""
-
     await message.answer(
-        "Введите, пожалуйста, название вашего потока:",
+        BotMessage.show_group_writer.value,
         reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(Status.parsing)
@@ -142,7 +135,7 @@ async def show_schedule(message: Message, state: FSMContext):
     download_mode = bool(user_data['download_mode'])
 
     await message.answer(
-        "Расписание формируется, пожалуйста, подождите."
+        BotMessage.please_wait.value
     )
 
     if parse_mode == 'group':
@@ -151,22 +144,18 @@ async def show_schedule(message: Message, state: FSMContext):
         srok = user_data['srok']
         input_data = user_data['input_data']
 
-        parser = parser_1.ParserUni(srok, input_data, download_mode, parse_mode, formob=formob, kurs=kurs).parse_group()
+        parser = (schedule_parser.ParserUni(srok, input_data, download_mode, parse_mode, formob=formob, kurs=kurs)
+                  .parse_group())
 
     else:
         srok = user_data['input_data']
         input_data = user_data['kurs']
 
-        parser = parser_1.ParserUni(srok, input_data, download_mode, parse_mode).parse_teacher()
-
-    await message.answer(
-        srok + "" + input_data
-    )
+        parser = schedule_parser.ParserUni(srok, input_data, download_mode, parse_mode).parse_teacher()
 
     if parser == 0:
         await message.answer(
-            "Ой! Кажется при формировании вашего расписания произошла ошибка! Пожалуйста, проверьте данные и "
-            "попробуйте еще раз.",
+            BotMessage.warning.value,
             reply_markup=show_again()
         )
 
