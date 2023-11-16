@@ -17,7 +17,8 @@ router = Router()
 
 class Status(StatesGroup):
     menu_activity = State()
-    forming_information_for_parse = State()
+    forming_information_for_parse_group = State()
+    forming_information_for_parse_teach = State()
     parsing = State()
 
 
@@ -30,11 +31,10 @@ async def cmd_start(message: Message, state: FSMContext):
     )
     await state.set_state(Status.menu_activity)
 
-
-    @router.message(Status.menu_activity or Status.forming_information_for_parse or Status.parsing, F.text)
+    @router.message(Status.menu_activity or Status.forming_information_for_parse_group or Status.parsing, F.text)
     async def for_spam(message: Message):
         await message.answer(
-            "Пожалуйста, используйте меню"
+            "Пожалуйста, воспользуйтесь кнопками-меню."
         )
 
 
@@ -50,25 +50,38 @@ async def show_author(message: Message):
 # choosing the types of getting schedule
 @router.message(Command(commands=["return"]))
 @router.message(Status.menu_activity,
-                F.text.lower() == ButtonsName.schedule_main.value or F.text.lower() == str(ButtonsName.again.value).lower())
+                F.text.lower() == ButtonsName.schedule_main.value or F.text.lower() == str(
+                    ButtonsName.again.value).lower())
 async def show_schedulle_types(message: Message, state: FSMContext):
     await message.answer(
         "Какое расписание ты хочешь просмотреть?",
         reply_markup=choice_schedulle()
     )
-    await state.set_state(Status.forming_information_for_parse)
 
 
-@router.message(Status.forming_information_for_parse,
+@router.message(Status.menu_activity,
+                F.text.lower() == str(ButtonsName.schedule.value[1]).lower())
+async def show_graduate(message: Message, state: FSMContext):
+    await state.update_data(parse_mode="teach")
+    await message.answer(
+        "Пожалуйста, введите фамилию преподавателя:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(Status.forming_information_for_parse_teach)
+
+
+@router.message(Status.menu_activity,
                 F.text.lower() == str(ButtonsName.schedule.value[0]).lower())
-async def show_graduate(message: Message):
+async def show_graduate(message: Message, state: FSMContext):
+    await state.update_data(parse_mode="group")
     await message.answer(
         "Выбери форму обучения:",
         reply_markup=choice_graduate()
     )
+    await state.set_state(Status.forming_information_for_parse_group)
 
 
-@router.message(Status.forming_information_for_parse,
+@router.message(Status.forming_information_for_parse_group,
                 F.text.lower().in_(ButtonsName.graduate.value.values()))
 async def show_kurs(message: Message, state: FSMContext):
     await state.update_data(formob=message.text.lower())
@@ -78,26 +91,36 @@ async def show_kurs(message: Message, state: FSMContext):
     )
 
 
-@router.message(Status.forming_information_for_parse,
-                F.text.lower().in_(ButtonsName.kurs.value.values()))
-async def show_srok(message: Message, state: FSMContext):
+@router.message(Status.forming_information_for_parse_group, F.text.lower().in_(ButtonsName.kurs.value.values()))
+async def show_srok_for_group(message: Message, state: FSMContext):
     await state.update_data(kurs=message.text.lower())
     await message.answer(
         "На какой период необходимо отобразить расписание?",
         reply_markup=choice_srok()
-    )
+        )
 
 
-@router.message(Status.forming_information_for_parse,
+@router.message(Status.forming_information_for_parse_teach, F.text)
+async def show_srok_for_teach(message: Message, state: FSMContext):
+    await state.update_data(kurs=message.text.lower())
+    await message.answer(
+        "На какой период необходимо отобразить расписание?",
+        reply_markup=choice_srok()
+        )
+    await state.set_state(Status.parsing)
+
+
+@router.message(Status.forming_information_for_parse_group,
                 F.text.lower().in_(ButtonsName.srok.value.values()))
 async def show_srok(message: Message, state: FSMContext):
     await state.update_data(srok=message.text.lower())
+    await state.update_data(download_mode=download_mode_set(message.text.lower()))
 
-    if (message.text.lower() == str(ButtonsName.srok.value.get("month")).lower() or
+    """if (message.text.lower() == str(ButtonsName.srok.value.get("month")).lower() or
             message.text.lower() == str(ButtonsName.srok.value.get("sem")).lower()):
         await state.update_data(download_mode=1)
     else:
-        await state.update_data(download_mode=0)
+        await state.update_data(download_mode=0)"""
 
     await message.answer(
         "Введите, пожалуйста, название вашего потока:",
@@ -108,20 +131,37 @@ async def show_srok(message: Message, state: FSMContext):
 
 @router.message(Status.parsing)
 async def show_schedule(message: Message, state: FSMContext):
-    await state.update_data(caf=message.text.lower())
+    await state.update_data(input_data=message.text.lower())
+
+    if message.text.lower() in ButtonsName.srok.value.values():
+        await state.update_data(download_mode=download_mode_set(message.text.lower()))
+
     user_data = await state.get_data()
 
+    parse_mode = user_data['parse_mode']
     download_mode = bool(user_data['download_mode'])
-    formob = user_data['formob']
-    kurs = user_data['kurs']
-    srok = user_data['srok']
-    caf = user_data['caf']
 
     await message.answer(
         "Расписание формируется, пожалуйста, подождите."
     )
 
-    parser = parser_1.Potok_parser(formob, kurs, srok, caf, download_mode).parse()
+    if parse_mode == 'group':
+        formob = user_data['formob']
+        kurs = user_data['kurs']
+        srok = user_data['srok']
+        input_data = user_data['input_data']
+
+        parser = parser_1.ParserUni(srok, input_data, download_mode, parse_mode, formob=formob, kurs=kurs).parse_group()
+
+    else:
+        srok = user_data['input_data']
+        input_data = user_data['kurs']
+
+        parser = parser_1.ParserUni(srok, input_data, download_mode, parse_mode).parse_teacher()
+
+    await message.answer(
+        srok + "" + input_data
+    )
 
     if parser == 0:
         await message.answer(
@@ -144,7 +184,15 @@ async def show_schedule(message: Message, state: FSMContext):
     else:
         await message.answer(
             f"{parser}", parse_mode=ParseMode.HTML,
-            reply_markup = show_again()
+            reply_markup=show_again()
         )
     await state.clear()
     await state.set_state(Status.menu_activity)
+
+
+def download_mode_set(string):
+    if (string == str(ButtonsName.srok.value.get("month")).lower() or
+            string == str(ButtonsName.srok.value.get("sem")).lower()):
+        return 1
+    else:
+        return 0
