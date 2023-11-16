@@ -5,7 +5,7 @@ from handlers import menu_selectors
 from aiogram.fsm.storage.memory import MemoryStorage
 import logging
 
-TOKEN = "6915376896:AAGKI2FImWnFlw9-uwV2fZAWbnK5QoILupQ"
+TOKEN = ""
 
 
 async def main():
